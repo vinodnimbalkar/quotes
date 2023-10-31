@@ -34,7 +34,7 @@ async fn main() -> Result<(), axum::Error> {
         .route("/quotes", post(handlers::create_quote))
         .route("/quotes", get(handlers::read_quotes))
         .route("/quotes/:id", put(handlers::update_quote))
-        // .route("/quotes/:id", delete(handlers::delete_quote))
+        .route("/quotes/:id", delete(handlers::delete_quote))
         // timeout requests after 10 secs, returning 408 status code
         .layer(TimeoutLayer::new(Duration::from_secs(10)))
         // don't allow request bodies larger than 1024 bytes, returning 413 status code

@@ -5,7 +5,7 @@ use axum::{
     Json,
 };
 use chrono::{DateTime, Utc};
-use mongodb::{bson::doc, bson::oid::ObjectId, error, Client, Collection, Database};
+use mongodb::{bson::doc, bson::oid::ObjectId, Client};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -74,7 +74,6 @@ pub async fn update_quote(
     Path(id): Path<ObjectId>,
     Json(payload): Json<CreateQuote>,
 ) -> StatusCode {
-    let now = chrono::Utc::now();
     // TODO: remove repeated collection and database call
     let collection = client.database("vinod").collection::<Quote>("quotes");
     let filter = doc! { "_id": id };
@@ -95,10 +94,13 @@ pub async fn update_quote(
     }
 }
 
-// pub async fn delete_quote(State(client): State<Client>, Path(id): Path<uuid::Uuid>) -> StatusCode {
-//
-//     match res {
-//         Ok(status) => status,
-//         Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
-//     }
-// }
+pub async fn delete_quote(State(client): State<Client>, Path(id): Path<ObjectId>) -> StatusCode {
+    // TODO: remove repeated collection and database call
+    let collection = client.database("vinod").collection::<Quote>("quotes");
+    let filter = doc! {"_id": id};
+    let res = collection.delete_one(filter, None).await.unwrap();
+    match res.deleted_count {
+        0 => StatusCode::NOT_MODIFIED,
+        _ => StatusCode::OK,
+    }
+}
