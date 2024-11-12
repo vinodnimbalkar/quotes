@@ -6,28 +6,24 @@ use axum::{
     Router,
 };
 use dotenv::dotenv;
-use mongodb::{options::ClientOptions, Client};
 use std::{env, time::Duration};
 use tower_http::{
     limit::RequestBodyLimitLayer, set_header::SetResponseHeaderLayer, timeout::TimeoutLayer,
     trace::TraceLayer,
 };
-use utils::connection::DatabaseConfig;
+use utils::connection::dbconnect;
+use tracing_subscriber;
 
 #[tokio::main]
 async fn main() -> Result<(), axum::Error> {
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::INFO)
+        .init();
     dotenv().ok();
     let port = env::var("PORT").unwrap_or_else(|_| "3000".to_string());
     let addr = format!("0.0.0.0:{}", port);
 
-    let database_config = DatabaseConfig::new();
-    let mut client_options = ClientOptions::parse(database_config.uri).await.unwrap();
-    client_options.connect_timeout = database_config.connection_timeout;
-    client_options.max_pool_size = database_config.max_pool_size;
-    client_options.min_pool_size = database_config.min_pool_size;
-    // the server will select the algorithm it supports from the list provided by the driver
-    client_options.compressors = database_config.compressors;
-    let client = Client::with_options(client_options).unwrap();
+    let (_,mongo_db) = dbconnect().await.unwrap();
 
     let app = Router::new()
         .route("/", get(handlers::health))
@@ -43,14 +39,15 @@ async fn main() -> Result<(), axum::Error> {
         .layer(SetResponseHeaderLayer::if_not_present(
             header::SERVER,
             HeaderValue::from_static("rust-axum"),
-        ));
-    let app = app.fallback(handlers::handler_404).with_state(client);
+        )).with_state(mongo_db);
+    let app = app.fallback(handlers::handler_404);
+
+    println!("🚀 Starting server on {}", addr);
 
     axum::Server::bind(&addr.parse().unwrap())
         .serve(app.into_make_service())
         .await
         .unwrap();
 
-    println!("🚀 Server started successfully");
     Ok(())
 }

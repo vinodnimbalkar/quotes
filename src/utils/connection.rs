@@ -1,5 +1,9 @@
-use mongodb::options::Compressor;
+use mongodb::{
+    options::{ClientOptions, Compressor},
+    Client, Database,
+};
 use std::time::Duration;
+use tracing::info;
 
 pub struct DatabaseConfig {
     pub uri: String,
@@ -45,4 +49,19 @@ impl DatabaseConfig {
             ]),
         }
     }
+}
+
+pub async fn dbconnect() -> mongodb::error::Result<(Client, Database)> {
+    let database_config = DatabaseConfig::new();
+    let mut client_options = ClientOptions::parse(database_config.uri).await.unwrap();
+    client_options.connect_timeout = database_config.connection_timeout;
+    client_options.max_pool_size = database_config.max_pool_size;
+    client_options.min_pool_size = database_config.min_pool_size;
+    // the server will select the algorithm it supports from the list provided by the driver
+    client_options.compressors = database_config.compressors;
+    let client = Client::with_options(client_options).unwrap();
+    let db = client.database("vinod");
+
+    info!("Connected to database");
+    Ok((client, db))
 }

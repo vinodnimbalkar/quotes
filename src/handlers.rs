@@ -5,7 +5,7 @@ use axum::{
     Json,
 };
 use chrono::{DateTime, Utc};
-use mongodb::{bson::doc, bson::oid::ObjectId, Client};
+use mongodb::{bson::{doc, oid::ObjectId}, Database};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -43,18 +43,18 @@ pub async fn handler_404() -> impl IntoResponse {
 }
 
 pub async fn create_quote(
-    State(client): State<Client>,
+    State(db): State<Database>,
     Json(payload): Json<CreateQuote>,
 ) -> Result<(StatusCode, Json<Quote>), StatusCode> {
     let quote = Quote::new(payload.book, payload.quote);
-    let collection = client.database("vinod").collection::<Quote>("quotes");
+    let collection = db.collection::<Quote>("quotes");
     let _ = collection.insert_one(&quote, None).await;
 
     Ok((StatusCode::CREATED, axum::Json(quote)))
 }
 
-pub async fn read_quotes(State(client): State<Client>) -> Result<Json<Vec<Quote>>, StatusCode> {
-    let collection = client.database("vinod").collection::<Quote>("quotes");
+pub async fn read_quotes(State(db): State<Database>) -> Result<Json<Vec<Quote>>, StatusCode> {
+    let collection = db.collection::<Quote>("quotes");
 
     let mut quote_cursor = collection
         .find(None, None)
@@ -70,12 +70,11 @@ pub async fn read_quotes(State(client): State<Client>) -> Result<Json<Vec<Quote>
 }
 
 pub async fn update_quote(
-    State(client): State<Client>,
+    State(db): State<Database>,
     Path(id): Path<ObjectId>,
     Json(payload): Json<CreateQuote>,
 ) -> StatusCode {
-    // TODO: remove repeated collection and database call
-    let collection = client.database("vinod").collection::<Quote>("quotes");
+    let collection = db.collection::<Quote>("quotes");
     let filter = doc! { "_id": id };
     let update = doc! { "$set": { "book": payload.book, "quote": payload.quote } };
     let res = collection
@@ -94,9 +93,8 @@ pub async fn update_quote(
     }
 }
 
-pub async fn delete_quote(State(client): State<Client>, Path(id): Path<ObjectId>) -> StatusCode {
-    // TODO: remove repeated collection and database call
-    let collection = client.database("vinod").collection::<Quote>("quotes");
+pub async fn delete_quote(State(db): State<Database>, Path(id): Path<ObjectId> ) -> StatusCode {
+    let collection = db.collection::<Quote>("quotes");
     let filter = doc! {"_id": id};
     let res = collection.delete_one(filter, None).await.unwrap();
     match res.deleted_count {
